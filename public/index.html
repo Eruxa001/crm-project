@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Мини-CRM — Заказы</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>CRM Система</h1>
+            <nav class="nav-links">
+                <a href="index.html" class="active">Заказы</a>
+                <a href="employees.html">Сотрудники</a>
+            </nav>
+        </header>
+
+        <!-- Дашборд со статистикой -->
+        <section class="dashboard">
+            <div class="card">
+                <h3>Всего заказов</h3>
+                <p id="statTotal">0</p>
+            </div>
+            <div class="card">
+                <h3>В работе</h3>
+                <p id="statInWork">0</p>
+            </div>
+            <div class="card">
+                <h3>Выручка (Завершено)</h3>
+                <p id="statRevenue">0 ₽</p>
+            </div>
+        </section>
+
+        <section class="form-section">
+            <h2>Новый заказ</h2>
+            <form id="orderForm">
+                <div class="form-group">
+                    <label>Имя клиента</label>
+                    <input type="text" id="clientName" required placeholder="Иван Иванов">
+                </div>
+                <div class="form-group">
+                    <label>Телефон</label>
+                    <input type="tel" id="clientPhone" required placeholder="+7 (999) 000-00-00">
+                </div>
+                <div class="form-group">
+                    <label>Услуга / Товар</label>
+                    <input type="text" id="serviceName" required placeholder="Ремонт ноутбука">
+                </div>
+                <div class="form-group">
+                    <label>Стоимость (руб.)</label>
+                    <input type="number" id="price" required min="0" placeholder="5000">
+                </div>
+                <div class="form-group">
+                    <label>Назначить мастера</label>
+                    <select id="employeeSelect">
+                        <option value="">-- Не назначен --</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn">Создать заказ</button>
+            </form>
+        </section>
+
+        <section class="list-section">
+            <div class="list-header">
+                <h2>Список заказов</h2>
+                <input type="text" id="searchInput" placeholder="Поиск по клиенту...">
+            </div>
+            <table class="orders-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Клиент</th>
+                        <th>Телефон</th>
+                        <th>Услуга</th>
+                        <th>Мастер</th>
+                        <th>Сумма</th>
+                        <th>Статус</th>
+                        <th>Действия</th>
+                    </tr>
+                </thead>
+                <tbody id="ordersTableBody"></tbody>
+            </table>
+        </section>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+
+</html>

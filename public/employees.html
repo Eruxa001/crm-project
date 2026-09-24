@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Мини-CRM — Сотрудники</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>CRM Система</h1>
+            <nav class="nav-links">
+                <a href="index.html">Заказы</a>
+                <a href="employees.html" class="active">Сотрудники</a>
+            </nav>
+        </header>
+
+        <section class="form-section">
+            <h2>Добавить сотрудника</h2>
+            <form id="employeeForm">
+                <div class="form-group">
+                    <label>ФИО Сотрудника</label>
+                    <input type="text" id="empName" required placeholder="Михаил Сидоров">
+                </div>
+                <div class="form-group">
+                    <label>Должность</label>
+                    <input type="text" id="empPosition" required placeholder="Мастер по пайке">
+                </div>
+                <button type="submit" class="btn">Зарегистрировать</button>
+            </form>
+        </section>
+
+        <section class="list-section">
+            <h2>Список сотрудников и их загрузка</h2>
+            <table class="orders-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>ФИО</th>
+                        <th>Должность</th>
+                        <th>Активных заказов в работе</th>
+                    </tr>
+                </thead>
+                <tbody id="employeesTableBody"></tbody>
+            </table>
+        </section>
+    </div>
+
+    <script src="employees.js"></script>
+</body>
+
+</html>
