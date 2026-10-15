@@ -25,6 +25,11 @@ app.use((req, res, next) => {
 });
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+// Явный роутер для главной страницы сайта
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
 
 app.use('/api', (req, res, next) => { res.set('Cache-Control', 'no-store'); next(); }); // данные клиентов не кэшируются
 app.use('/api/auth', auth.router);   // вход и регистрация открыты
