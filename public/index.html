@@ -1,92 +1,104 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ru">
-
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Мини-CRM — Заказы</title>
-    <link rel="stylesheet" href="style.css">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Мастерская — заказы</title>
+<link rel="stylesheet" href="style.css">
 </head>
-
 <body>
-    <div class="container">
-        <header>
-            <h1>CRM Система</h1>
-            <nav class="nav-links">
-                <a href="index.html" class="active">Заказы</a>
-                <a href="employees.html">Сотрудники</a>
-            </nav>
-        </header>
-
-        <!-- Дашборд со статистикой -->
-        <section class="dashboard">
-            <div class="card">
-                <h3>Всего заказов</h3>
-                <p id="statTotal">0</p>
-            </div>
-            <div class="card">
-                <h3>В работе</h3>
-                <p id="statInWork">0</p>
-            </div>
-            <div class="card">
-                <h3>Выручка (Завершено)</h3>
-                <p id="statRevenue">0 ₽</p>
-            </div>
-        </section>
-
-        <section class="form-section">
-            <h2>Новый заказ</h2>
-            <form id="orderForm">
-                <div class="form-group">
-                    <label>Имя клиента</label>
-                    <input type="text" id="clientName" required placeholder="Иван Иванов">
-                </div>
-                <div class="form-group">
-                    <label>Телефон</label>
-                    <input type="tel" id="clientPhone" required placeholder="+7 (999) 000-00-00">
-                </div>
-                <div class="form-group">
-                    <label>Услуга / Товар</label>
-                    <input type="text" id="serviceName" required placeholder="Ремонт ноутбука">
-                </div>
-                <div class="form-group">
-                    <label>Стоимость (руб.)</label>
-                    <input type="number" id="price" required min="0" placeholder="5000">
-                </div>
-                <div class="form-group">
-                    <label>Назначить мастера</label>
-                    <select id="employeeSelect">
-                        <option value="">-- Не назначен --</option>
-                    </select>
-                </div>
-                <button type="submit" class="btn">Создать заказ</button>
-            </form>
-        </section>
-
-        <section class="list-section">
-            <div class="list-header">
-                <h2>Список заказов</h2>
-                <input type="text" id="searchInput" placeholder="Поиск по клиенту...">
-            </div>
-            <table class="orders-table">
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Клиент</th>
-                        <th>Телефон</th>
-                        <th>Услуга</th>
-                        <th>Мастер</th>
-                        <th>Сумма</th>
-                        <th>Статус</th>
-                        <th>Действия</th>
-                    </tr>
-                </thead>
-                <tbody id="ordersTableBody"></tbody>
-            </table>
-        </section>
+<header>
+  <h1>Мастерская</h1>
+  <nav>
+    <button data-tab="orders" class="on">Заказы</button>
+    <button data-tab="clients">Клиенты</button>
+    <button data-tab="staff">Сотрудники</button>
+    <button data-tab="archive" class="ow" hidden>Архив</button>
+  </nav>
+  <div class="user"><span id="me"></span><button id="pwBtn">Пароль</button><a id="backup" class="ow" href="/api/backup" hidden>Копия базы</a><button id="logout">Выйти</button></div>
+</header>
+<main>
+  <section id="orders">
+    <dl class="stats">
+      <div><dt>Всего заказов</dt><dd id="statTotal">0</dd></div>
+      <div><dt>В работе</dt><dd id="statInWork">0</dd></div>
+      <div><dt>Ждут выдачи</dt><dd id="statReady">0</dd></div>
+      <div><dt>Не доплачено</dt><dd id="statDebt">0 ₸</dd></div>
+      <div><dt>Выручка (завершено)</dt><dd id="statRevenue">0 ₸</dd></div>
+    </dl>
+    <section id="today" class="today" hidden></section>
+    <form id="orderForm" class="strip">
+      <button>Создать заказ</button>
+    </form>
+    <div class="bar">
+      <div id="chips"></div>
+      <input id="q" type="search" placeholder="Поиск: клиент, телефон, услуга" aria-label="Поиск по заказам">
     </div>
-
-    <script src="app.js"></script>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>Заказ</th><th>Клиент</th><th>Услуга и мастер</th><th class="num">Сумма</th><th>Статус</th><th></th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <p id="empty" hidden>Заказов не найдено. Создайте новый в форме выше или сбросьте фильтр.</p>
+    </div>
+  </section>
+  <section id="clients" hidden>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>Клиент</th><th class="num">Заказов</th><th class="num">Оплачено</th><th>Последний заказ</th></tr></thead>
+        <tbody id="clientRows"></tbody>
+      </table>
+      <p id="noClients" hidden>Клиентов пока нет: они появляются при создании заказа.</p>
+    </div>
+  </section>
+  <section id="archive" hidden>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>Заказ</th><th>Клиент</th><th>Услуга</th><th class="num">Сумма</th><th>В архиве с</th><th></th></tr></thead>
+        <tbody id="archiveRows"></tbody>
+      </table>
+      <p id="noArchive" hidden>Архив пуст.</p>
+    </div>
+  </section>
+  <section id="staff" hidden>
+    <form id="staffForm" class="strip">
+      <label>ФИО сотрудника<input name="name" placeholder="Михаил Сидоров" required></label>
+      <label>Должность<input name="position" placeholder="Мастер по пайке" required></label>
+      <button>Добавить сотрудника</button>
+    </form>
+    <ul id="team"></ul>
+  </section>
+</main>
+<dialog id="pwDlg">
+  <h2>Смена пароля</h2>
+  <form id="pwForm" class="strip">
+    <label>Текущий пароль<input name="old" type="password" autocomplete="current-password" required></label>
+    <label>Новый пароль<input name="new" type="password" autocomplete="new-password" minlength="8" maxlength="128" required></label>
+    <p id="pwErr" class="wide" role="alert"></p>
+    <button>Сохранить</button>
+    <button type="button" id="pwCancel" class="ghost">Отмена</button>
+  </form>
+</dialog>
+<dialog id="editDlg">
+  <h2 id="editTitle">Заказ</h2>
+  <form id="editForm" class="strip">
+    <p id="editErr" class="wide" role="alert"></p>
+    <button>Сохранить</button>
+    <button type="button" id="editCancel" class="ghost">Отмена</button>
+  </form>
+  <div class="paybox">
+    <h3>Платежи</h3>
+    <p id="paySum"></p>
+    <ul id="payList"></ul>
+    <form id="payForm">
+      <input name="amount" type="number" min="1" step="any" placeholder="Сумма, ₸" aria-label="Сумма платежа" required>
+      <select name="method" aria-label="Способ оплаты"></select>
+      <button>Добавить платёж</button>
+    </form>
+    <p id="payErr" role="alert"></p>
+  </div>
+</dialog>
+<div id="toast" role="status"></div>
+<script src="app.js"></script>
 </body>
-
 </html>

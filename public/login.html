@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Вход — Мастерская</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="auth">
+<main>
+  <h1>Мастерская</h1>
+  <div class="tabs">
+    <button data-mode="login" class="on">Вход</button>
+    <button data-mode="register">Регистрация</button>
+  </div>
+  <form id="authForm">
+    <label>Логин<input name="username" autocomplete="username" minlength="3" maxlength="32" required></label>
+    <label>Пароль<input name="password" type="password" autocomplete="current-password" minlength="8" maxlength="128" required></label>
+    <label id="inviteRow" hidden>Код приглашения (если требуется)<input name="invite" autocomplete="off"></label>
+    <p id="err" role="alert"></p>
+    <button id="submit">Войти</button>
+  </form>
+</main>
+<script src="login.js"></script>
+</body>
+</html>
