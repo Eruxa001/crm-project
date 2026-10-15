@@ -133,9 +133,9 @@ function renderClients() {
     $('#clientRows').innerHTML = list.map((c) => `
         <tr>
             <td><button class="x edit" data-phone="${esc(c.phone)}">${esc(c.name)}</button><small>${esc(fmtPhone(c.phone))}</small></td>
-            <td class="num">${c.n}</td>
-            <td class="num">${money(c.paid)}</td>
-            <td>${fmtDate(c.last)}</td>
+            <td class="num" data-l="Заказов">${c.n}</td>
+            <td class="num" data-l="Оплачено">${money(c.paid)}</td>
+            <td data-l="Последний заказ">${fmtDate(c.last)}</td>
         </tr>`).join('');
 }
 
@@ -174,6 +174,7 @@ function renderTeam() {
 function showTab(tab) {
     document.querySelectorAll('nav button').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
     ['orders', 'clients', 'staff', 'archive'].forEach((t) => { $('#' + t).hidden = t !== tab; });
+    $('#fab').hidden = tab !== 'orders';
     if (tab === 'archive') loadArchive();
 }
 document.querySelector('nav').onclick = (e) => { if (e.target.dataset.tab) showTab(e.target.dataset.tab); };
@@ -189,6 +190,7 @@ $('#orderForm').onsubmit = (e) => {
     act(async () => {
         await api('/api/orders', 'POST', Object.fromEntries(new FormData(form)));
         form.reset();
+        form.classList.remove('open'); // на телефоне форма — отдельный экран
         toast('Заказ создан');
     })();
 };
@@ -287,7 +289,7 @@ async function loadArchive() {
                 <td>${esc(o.client_name)}</td>
                 <td>${esc(o.service_name)}</td>
                 <td class="num">${money(o.price)}</td>
-                <td>${fmtDate(o.deleted_at)}</td>
+                <td data-l="В архиве с">${fmtDate(o.deleted_at)}</td>
                 <td><button class="x edit" data-restore="${o.id}">Восстановить</button></td>
             </tr>`).join('');
     } catch (e) { toast(e.message); }
@@ -307,6 +309,11 @@ $('#pwForm').onsubmit = async (e) => {
         toast('Пароль изменён');
     } catch (err) { $('#pwErr').textContent = err.message; }
 };
+
+$('#fab').onclick = () => $('#orderForm').classList.add('open');
+$('#orderCancel').onclick = () => $('#orderForm').classList.remove('open');
+$('#menuBtn').onclick = () => $('.user').classList.toggle('open');
+$('.user').onclick = () => $('.user').classList.remove('open');
 
 $('#logout').onclick = async () => {
     await fetch('/api/auth/logout', { method: 'POST' });

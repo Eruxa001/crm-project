@@ -25,11 +25,6 @@ app.use((req, res, next) => {
 });
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
-// Явный роутер для главной страницы сайта
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
 
 app.use('/api', (req, res, next) => { res.set('Cache-Control', 'no-store'); next(); }); // данные клиентов не кэшируются
 app.use('/api/auth', auth.router);   // вход и регистрация открыты
@@ -207,10 +202,23 @@ app.use((err, req, res, next) => {
     fail(res, code, code < 500 ? 'Некорректный запрос' : 'Ошибка сервера');
 });
 
+// Понятное сообщение вместо длинной трассировки
+function fatal(e) {
+    if (e && e.code === 'SQLITE_BUSY') {
+        console.error('База данных занята другой программой. Закройте DB Browser for SQLite или расширение SQLite в VS Code, а также другие окна, где запущен сервер (node), и запустите снова.');
+    } else if (e && e.code === 'EADDRINUSE') {
+        console.error(`Порт ${PORT} уже занят: скорее всего, сервер уже запущен в другом окне терминала.`);
+    } else {
+        console.error(e);
+    }
+    process.exit(1);
+}
+
 ready.then(() => {
     backup.schedule(); // ежедневная копия в папку backups/
-    app.listen(PORT, () => {
+    const server = app.listen(PORT, () => {
         console.log(`Сервер запущен: http://localhost:${PORT}`);
         if (!process.env.INVITE_CODE) console.warn('Внимание: INVITE_CODE не задан, регистрация открыта для всех');
     });
-});
+    server.on('error', fatal);
+}).catch(fatal);

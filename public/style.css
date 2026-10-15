@@ -89,3 +89,58 @@ small.ok{color:#1f8a4c}
 #payForm{display:flex;flex-wrap:wrap;gap:8px}
 #payForm button{background:var(--acc);color:#fff;border:0;border-radius:3px;padding:8px 14px;font-weight:600;cursor:pointer}
 #payErr{margin:6px 0 0;min-height:1.4em;color:#b3261e}
+
+/* ---------- Телефон ---------- */
+button,select,input{touch-action:manipulation}
+#toast{z-index:60}
+#menuBtn,#fab,.m-only{display:none}
+#fab[hidden]{display:none}
+@media(max-width:700px){
+  body{padding-bottom:calc(64px + env(safe-area-inset-bottom))}
+  input,select,button{font-size:16px;min-height:44px}
+  header{position:relative;height:52px;padding:0 12px;gap:12px}
+  h1{font-size:18px}
+  #menuBtn{display:block;margin-left:auto;min-width:44px;background:none;border:0;color:#fff;font-size:22px}
+  .user{display:none;position:absolute;top:52px;right:8px;z-index:30;flex-direction:column;align-items:stretch;gap:8px;margin:0;padding:12px;min-width:200px;background:var(--ink);border:1px solid #3d525c}
+  .user.open{display:flex}
+  #pwBtn,.user a,#logout{display:flex;align-items:center;justify-content:center;min-height:44px}
+  nav{position:fixed;left:0;right:0;bottom:0;z-index:15;height:calc(56px + env(safe-area-inset-bottom));padding-bottom:env(safe-area-inset-bottom);background:var(--ink);border-top:1px solid #3d525c}
+  nav button{flex:1;min-height:0;padding:0 4px;font-size:14px;border-bottom:0;border-top:3px solid transparent}
+  nav button.on{border-top-color:#3cc4cf}
+  main{padding:12px}
+  .stats{display:grid;grid-template-columns:1fr 1fr}
+  .stats div{flex:none;padding:10px 14px;border-right:0;border-bottom:1px solid var(--line)}
+  .stats div:last-child{grid-column:1/-1;border-bottom:0}
+  dd{font-size:20px}
+  .strip{grid-template-columns:1fr}
+  .m-only{display:inline-block}
+  #orderForm{display:none}
+  #orderForm.open{display:grid;position:fixed;inset:0;z-index:40;margin:0;padding:16px;overflow:auto;align-content:start;border:0}
+  #orderForm.open::before{content:"Новый заказ";font-size:18px;font-weight:600}
+  #fab{display:block;position:fixed;right:16px;bottom:calc(72px + env(safe-area-inset-bottom));z-index:14;min-height:52px;padding:0 20px;border:0;border-radius:26px;background:var(--acc);color:#fff;font-weight:600;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+  .bar{display:block}
+  #chips{flex-wrap:nowrap;overflow-x:auto;margin-bottom:10px;padding-bottom:4px}
+  #chips button{flex:none;min-height:40px;white-space:nowrap}
+  #q{width:100%;min-width:0}
+  .tbl{overflow:visible;background:none;border:0}
+  table,tbody{display:block}
+  thead{display:none}
+  tbody tr{display:grid;grid-template-columns:1fr auto;grid-template-areas:"client sum" "service service" "id st" "act act";gap:6px 12px;margin-bottom:10px;padding:12px;background:var(--paper);border:1px solid var(--line);border-left:4px solid var(--c)}
+  tbody td{display:block;padding:0;border:0;box-shadow:none!important;white-space:normal}
+  #rows td:nth-child(1),#archiveRows td:nth-child(1){grid-area:id;color:var(--mut)}
+  #rows td:nth-child(2),#archiveRows td:nth-child(2){grid-area:client;font-weight:600}
+  #rows td:nth-child(3),#archiveRows td:nth-child(3){grid-area:service}
+  #rows td:nth-child(4),#archiveRows td:nth-child(4){grid-area:sum;text-align:right}
+  #rows td:nth-child(5),#archiveRows td:nth-child(5){grid-area:st}
+  #rows td:nth-child(6),#archiveRows td:nth-child(6){grid-area:act;display:grid;grid-template-columns:repeat(auto-fit,minmax(76px,1fr));gap:8px}
+  #rows .x,#archiveRows .x{display:inline-flex;align-items:center;justify-content:center;padding:8px 2px;min-height:40px;font-size:14px;border:1px solid var(--line);border-radius:6px}
+  #clientRows tr{grid-template-columns:1fr 1fr;grid-template-areas:none}
+  #clientRows td:first-child{grid-column:1/-1}
+  td[data-l]::before{content:attr(data-l) ": ";color:var(--mut);font-size:12px}
+  #empty,#noClients,#noArchive{background:var(--paper);border:1px solid var(--line)}
+  dialog{width:100vw;max-width:100vw;height:100dvh;max-height:100dvh;margin:0;border:0}
+  #payForm input{flex:1 1 120px}
+  #toast{bottom:calc(72px + env(safe-area-inset-bottom));max-width:92vw}
+}
+
+dialog h2:focus{outline:none}

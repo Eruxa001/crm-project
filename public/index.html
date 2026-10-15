@@ -2,7 +2,8 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#14232b">
 <title>Мастерская — заказы</title>
 <link rel="stylesheet" href="style.css">
 </head>
@@ -15,6 +16,7 @@
     <button data-tab="staff">Сотрудники</button>
     <button data-tab="archive" class="ow" hidden>Архив</button>
   </nav>
+  <button id="menuBtn" aria-label="Меню">☰</button>
   <div class="user"><span id="me"></span><button id="pwBtn">Пароль</button><a id="backup" class="ow" href="/api/backup" hidden>Копия базы</a><button id="logout">Выйти</button></div>
 </header>
 <main>
@@ -29,6 +31,7 @@
     <section id="today" class="today" hidden></section>
     <form id="orderForm" class="strip">
       <button>Создать заказ</button>
+      <button type="button" id="orderCancel" class="ghost m-only">Закрыть</button>
     </form>
     <div class="bar">
       <div id="chips"></div>
@@ -80,7 +83,7 @@
   </form>
 </dialog>
 <dialog id="editDlg">
-  <h2 id="editTitle">Заказ</h2>
+  <h2 id="editTitle" tabindex="-1" autofocus>Заказ</h2>
   <form id="editForm" class="strip">
     <p id="editErr" class="wide" role="alert"></p>
     <button>Сохранить</button>
@@ -98,6 +101,7 @@
     <p id="payErr" role="alert"></p>
   </div>
 </dialog>
+<button id="fab" aria-label="Новый заказ">＋ Заказ</button>
 <div id="toast" role="status"></div>
 <script src="app.js"></script>
 </body>

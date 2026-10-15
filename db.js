@@ -2,6 +2,7 @@ const sqlite3 = require('sqlite3');
 const path = require('path');
 
 const db = new sqlite3.Database(path.join(__dirname, 'database.sqlite'));
+db.configure('busyTimeout', 5000); // если файл на миг занят другой программой, ждём до 5 секунд, а не падаем
 
 const run = (sql, p = []) => new Promise((ok, no) =>
     db.run(sql, p, function (e) { e ? no(e) : ok({ id: this.lastID, changes: this.changes }); }));
