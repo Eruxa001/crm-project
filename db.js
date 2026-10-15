@@ -9,6 +9,11 @@ const run = (sql, p = []) => new Promise((ok, no) =>
 const get = (sql, p = []) => new Promise((ok, no) => db.get(sql, p, (e, r) => (e ? no(e) : ok(r))));
 const all = (sql, p = []) => new Promise((ok, no) => db.all(sql, p, (e, r) => (e ? no(e) : ok(r))));
 
+// Промисифицированные транзакции
+const begin = () => new Promise((ok, no) => db.run('BEGIN IMMEDIATE', (e) => (e ? no(e) : ok())));
+const commit = () => new Promise((ok, no) => db.run('COMMIT', (e) => (e ? no(e) : ok())));
+const rollback = () => new Promise((ok, no) => db.run('ROLLBACK', (e) => (e ? no(e) : ok())));
+
 // Таблицы создаются по очереди; сервер стартует после ready
 const ready = (async () => {
     await run('PRAGMA foreign_keys = ON');
@@ -48,6 +53,10 @@ const ready = (async () => {
     await run('DELETE FROM sessions WHERE expires_at < ?', [Date.now()]);
     await run('CREATE INDEX IF NOT EXISTS idx_clients_phone ON clients(phone)');
     await run('CREATE INDEX IF NOT EXISTS idx_orders_employee ON orders(employee_id)');
+    await run('CREATE INDEX IF NOT EXISTS idx_orders_client ON orders(client_id)');
+    await run('CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status)');
+    await run('CREATE INDEX IF NOT EXISTS idx_orders_deleted_at ON orders(deleted_at)');
+    await run('CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at)');
 
     // Миграции: номер версии хранится в PRAGMA user_version. Новое изменение схемы = новая строка в конце списка.
     const migrations = [
@@ -58,7 +67,7 @@ const ready = (async () => {
         "UPDATE users SET role = 'owner' WHERE id = (SELECT MIN(id) FROM users)",
         'ALTER TABLE orders ADD COLUMN deleted_at TEXT',
         "CREATE TABLE IF NOT EXISTS payments (id INTEGER PRIMARY KEY AUTOINCREMENT, order_id INTEGER NOT NULL, amount REAL NOT NULL, method TEXT NOT NULL, paid_at DATETIME DEFAULT CURRENT_TIMESTAMP, user_id INTEGER, FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE)",
-        "INSERT INTO payments (order_id, amount, method, paid_at) SELECT id, prepaid, 'Не указан', created_at FROM orders WHERE prepaid > 0",
+        "INSERT INTO payments (order_id, amount, method, paid_at) SELECT id, prepaid, 'Наличные', created_at FROM orders WHERE prepaid > 0",
         'CREATE INDEX IF NOT EXISTS idx_payments_order ON payments(order_id)',
     ];
     const { user_version: v } = await get('PRAGMA user_version');
@@ -74,4 +83,4 @@ const ready = (async () => {
     }
 })();
 
-module.exports = { run, get, all, ready };
+module.exports = { run, get, all, ready, db, begin, commit, rollback };

@@ -1,6 +1,6 @@
 const express = require('express');
 const path = require('path');
-const { run, get, all, ready } = require('./db');
+const { run, get, all, ready, begin, commit, rollback } = require('./db');
 const auth = require('./auth');
 const backup = require('./backup');
 const fs = require('fs');
@@ -16,11 +16,13 @@ app.disable('x-powered-by');
 if (process.env.TRUST_PROXY) app.set('trust proxy', 1); // нужно за nginx/Cloudflare, чтобы видеть настоящий IP
 app.use((req, res, next) => {
     res.set({
-        'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+        'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
         'X-Content-Type-Options': 'nosniff',
         'Referrer-Policy': 'same-origin',
     });
-    if (process.env.NODE_ENV === 'production') res.set('Strict-Transport-Security', 'max-age=15552000');
+    if (process.env.NODE_ENV === 'production') {
+        res.set('Strict-Transport-Security', 'max-age=15552000; includeSubDomains');
+    }
     next();
 });
 app.use(express.json());
@@ -55,18 +57,43 @@ app.get('/api/orders', async (req, res) => {
 });
 
 function parseOrder(b) {
-    const name = text(b.client_name), phone = normPhone(b.client_phone), service = text(b.service_name);
+    const name = text(b.client_name);
+    const phoneRaw = normPhone(b.client_phone);
+    const service = text(b.service_name);
     const price = Number(b.price);
     const prepaid = b.prepaid === '' || b.prepaid == null ? 0 : Number(b.prepaid);
-    const due = text(b.due_date), comment = text(b.comment).slice(0, 500);
-    const employeeId = b.employee_id ? Number(b.employee_id) : null;
+    const due = text(b.due_date);
+    const comment = text(b.comment).slice(0, 500);
+    const hasEmployee = Object.prototype.hasOwnProperty.call(b, 'employee_id');
+    const empVal = hasEmployee ? b.employee_id : null;
+    let employeeId = null;
+    if (hasEmployee && empVal !== '' && empVal !== null && empVal !== undefined) {
+        const n = Number(empVal);
+        employeeId = Number.isInteger(n) && n > 0 ? n : NaN;
+    } else {
+        employeeId = null;
+    }
     let error;
     if (!name || !service) error = 'Укажите клиента и услугу';
-    else if (phone.length < 10) error = 'Телефон должен содержать минимум 10 цифр';
+    else if (phoneRaw.length < 10) error = 'Телефон должен содержать минимум 10 цифр';
     else if (!Number.isFinite(price) || price <= 0) error = 'Стоимость должна быть числом больше нуля';
     else if (!Number.isFinite(prepaid) || prepaid < 0 || prepaid > price) error = 'Предоплата: от 0 до стоимости заказа';
     else if (due && !/^\d{4}-\d{2}-\d{2}$/.test(due)) error = 'Неверная дата готовности';
-    return { error, name, phone, service, price, prepaid, due: due || null, comment: comment || null, employeeId };
+    else if (hasEmployee && empVal !== '' && empVal !== null && empVal !== undefined && !Number.isFinite(employeeId)) {
+        error = 'Выбранный мастер не найден';
+    }
+    return {
+        error,
+        name,
+        phone: phoneRaw,
+        service,
+        price,
+        prepaid,
+        due: due || null,
+        comment: comment || null,
+        employeeId: Number.isFinite(employeeId) ? employeeId : null,
+        employeeProvided: hasEmployee && empVal !== '' && empVal !== null && empVal !== undefined,
+    };
 }
 
 // Клиент ищется по телефону (без дубликатов); имя обновляется на последнее введённое
@@ -81,10 +108,11 @@ const employeeMissing = async (id) => id && !(await get('SELECT id FROM employee
 app.post('/api/orders', async (req, res) => {
     const o = parseOrder(req.body);
     if (o.error) return fail(res, 400, o.error);
-    if (await employeeMissing(o.employeeId)) return fail(res, 400, 'Выбранный мастер не найден');
+    if (o.employeeProvided && await employeeMissing(o.employeeId)) return fail(res, 400, 'Выбранный мастер не найден');
+    const clientId = await clientFor(o.name, o.phone);
     const { id } = await run(
         'INSERT INTO orders (client_id, employee_id, service_name, price, due_date, comment) VALUES (?, ?, ?, ?, ?, ?)',
-        [await clientFor(o.name, o.phone), o.employeeId, o.service, o.price, o.due, o.comment]
+        [clientId, o.employeeId, o.service, o.price, o.due, o.comment]
     );
     if (o.prepaid > 0) { // предоплата при создании = первый платёж
         const method = METHODS.includes(req.body.method) ? req.body.method : METHODS[0];
@@ -97,13 +125,16 @@ app.post('/api/orders', async (req, res) => {
 app.patch('/api/orders/:id', async (req, res) => {
     const o = parseOrder(req.body);
     if (o.error) return fail(res, 400, o.error);
-    if (!(await get('SELECT id FROM orders WHERE id = ? AND deleted_at IS NULL', [req.params.id]))) return fail(res, 404, 'Заказ не найден');
-    if (await employeeMissing(o.employeeId)) return fail(res, 400, 'Выбранный мастер не найден');
-    const { s: paid } = await get('SELECT COALESCE(SUM(amount), 0) AS s FROM payments WHERE order_id = ?', [req.params.id]);
-    if (o.price < paid) return fail(res, 400, 'Стоимость не может быть меньше уже оплаченной суммы');
+    const orderId = Number(req.params.id);
+    if (!Number.isInteger(orderId) || orderId <= 0) return fail(res, 400, 'Некорректный ID заказа');
+    if (!(await get('SELECT id FROM orders WHERE id = ? AND deleted_at IS NULL', [orderId]))) return fail(res, 404, 'Заказ не найден');
+    if (o.employeeProvided && await employeeMissing(o.employeeId)) return fail(res, 400, 'Выбранный мастер не найден');
+    const { s: paid } = await get('SELECT COALESCE(SUM(amount), 0) AS s FROM payments WHERE order_id = ?', [orderId]);
+    if (o.price < paid - 0.0001) return fail(res, 400, 'Стоимость не может быть меньше уже оплаченной суммы');
+    const clientId = await clientFor(o.name, o.phone);
     await run(
         'UPDATE orders SET client_id = ?, employee_id = ?, service_name = ?, price = ?, due_date = ?, comment = ? WHERE id = ?',
-        [await clientFor(o.name, o.phone), o.employeeId, o.service, o.price, o.due, o.comment, req.params.id]
+        [clientId, o.employeeId, o.service, o.price, o.due, o.comment, orderId]
     );
     res.json({ ok: true });
 });
@@ -119,35 +150,58 @@ app.get('/api/orders/:id/payments', async (req, res) => {
 });
 
 app.post('/api/orders/:id/payments', async (req, res) => {
+    const orderId = Number(req.params.id);
+    if (!Number.isInteger(orderId) || orderId <= 0) return fail(res, 400, 'Некорректный ID заказа');
     const amount = Number(req.body.amount);
     if (!Number.isFinite(amount) || amount <= 0) return fail(res, 400, 'Сумма платежа должна быть больше нуля');
     if (!METHODS.includes(req.body.method)) return fail(res, 400, 'Выберите способ оплаты');
-    const order = await get('SELECT price FROM orders WHERE id = ? AND deleted_at IS NULL', [req.params.id]);
-    if (!order) return fail(res, 404, 'Заказ не найден');
-    const { s: paid } = await get('SELECT COALESCE(SUM(amount), 0) AS s FROM payments WHERE order_id = ?', [req.params.id]);
-    if (paid + amount > order.price + 0.001) return fail(res, 400, `Платежи не могут превышать стоимость: можно внести не больше ${order.price - paid}`);
-    const { id } = await run('INSERT INTO payments (order_id, amount, method, user_id) VALUES (?, ?, ?, ?)',
-        [req.params.id, amount, req.body.method, req.user.id]);
-    res.status(201).json({ id });
+    let paymentId;
+    try {
+        await begin();
+        const order = await get('SELECT price FROM orders WHERE id = ? AND deleted_at IS NULL', [orderId]);
+        if (!order) {
+            await rollback();
+            return fail(res, 404, 'Заказ не найден');
+        }
+        const { s: paid } = await get('SELECT COALESCE(SUM(amount), 0) AS s FROM payments WHERE order_id = ?', [orderId]);
+        const remaining = order.price - paid;
+        if (amount > remaining + 0.0001) {
+            await rollback();
+            return fail(res, 400, `Платежи не могут превышать стоимость: можно внести не больше ${Math.max(0, remaining).toFixed(2).replace(/\.00$/, '').replace(/(\.\d)0$/, '$1')}`);
+        }
+        const ins = await run('INSERT INTO payments (order_id, amount, method, user_id) VALUES (?, ?, ?, ?)', [orderId, amount, req.body.method, req.user.id]);
+        paymentId = ins.id;
+        await commit();
+    } catch (e) {
+        try { await rollback(); } catch (er) {}
+        throw e;
+    }
+    res.status(201).json({ id: paymentId });
 });
 
 // Исправлять ошибки в платежах может только владелец
 app.delete('/api/payments/:id', auth.requireOwner, async (req, res) => {
-    const { changes } = await run('DELETE FROM payments WHERE id = ?', [req.params.id]);
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) return fail(res, 400, 'Некорректный ID платежа');
+    const { changes } = await run('DELETE FROM payments WHERE id = ?', [id]);
     if (!changes) return fail(res, 404, 'Платёж не найден');
     res.json({ ok: true });
 });
 
 app.put('/api/orders/:id', async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) return fail(res, 400, 'Некорректный ID заказа');
     if (!STATUSES.includes(req.body.status)) return fail(res, 400, 'Недопустимый статус');
-    const { changes } = await run('UPDATE orders SET status = ? WHERE id = ? AND deleted_at IS NULL', [req.body.status, req.params.id]);
+    const { changes } = await run('UPDATE orders SET status = ? WHERE id = ? AND deleted_at IS NULL', [req.body.status, id]);
     if (!changes) return fail(res, 404, 'Заказ не найден');
     res.json({ ok: true });
 });
 
 // «Удаление» заказа = перенос в архив, доступен только владельцу
 app.delete('/api/orders/:id', auth.requireOwner, async (req, res) => {
-    const { changes } = await run('UPDATE orders SET deleted_at = CURRENT_TIMESTAMP WHERE id = ? AND deleted_at IS NULL', [req.params.id]);
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) return fail(res, 400, 'Некорректный ID заказа');
+    const { changes } = await run('UPDATE orders SET deleted_at = CURRENT_TIMESTAMP WHERE id = ? AND deleted_at IS NULL', [id]);
     if (!changes) return fail(res, 404, 'Заказ не найден');
     res.json({ ok: true });
 });
@@ -161,7 +215,9 @@ app.get('/api/archive', auth.requireOwner, async (req, res) => {
 });
 
 app.post('/api/orders/:id/restore', auth.requireOwner, async (req, res) => {
-    const { changes } = await run('UPDATE orders SET deleted_at = NULL WHERE id = ? AND deleted_at IS NOT NULL', [req.params.id]);
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) return fail(res, 400, 'Некорректный ID заказа');
+    const { changes } = await run('UPDATE orders SET deleted_at = NULL WHERE id = ? AND deleted_at IS NOT NULL', [id]);
     if (!changes) return fail(res, 404, 'Заказ не найден в архиве');
     res.json({ ok: true });
 });
@@ -184,7 +240,9 @@ app.post('/api/employees', async (req, res) => {
 });
 
 app.delete('/api/employees/:id', auth.requireOwner, async (req, res) => {
-    const { changes } = await run('DELETE FROM employees WHERE id = ?', [req.params.id]);
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) return fail(res, 400, 'Некорректный ID сотрудника');
+    const { changes } = await run('DELETE FROM employees WHERE id = ?', [id]);
     if (!changes) return fail(res, 404, 'Сотрудник не найден');
     res.json({ ok: true }); // заказы остаются, мастер у них сбрасывается (ON DELETE SET NULL)
 });
