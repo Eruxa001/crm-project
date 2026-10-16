@@ -1,6 +1,6 @@
 const express = require('express');
 const path = require('path');
-const { run, get, all, ready, begin, commit, rollback } = require('./db');
+const { run, get, all, ready } = require('./db');
 const auth = require('./auth');
 const backup = require('./backup');
 const fs = require('fs');
@@ -16,7 +16,7 @@ app.disable('x-powered-by');
 if (process.env.TRUST_PROXY) app.set('trust proxy', 1); // нужно за nginx/Cloudflare, чтобы видеть настоящий IP
 app.use((req, res, next) => {
     res.set({
-        'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+        'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
         'X-Content-Type-Options': 'nosniff',
         'Referrer-Policy': 'same-origin',
     });
@@ -155,28 +155,19 @@ app.post('/api/orders/:id/payments', async (req, res) => {
     const amount = Number(req.body.amount);
     if (!Number.isFinite(amount) || amount <= 0) return fail(res, 400, 'Сумма платежа должна быть больше нуля');
     if (!METHODS.includes(req.body.method)) return fail(res, 400, 'Выберите способ оплаты');
-    let paymentId;
-    try {
-        await begin();
-        const order = await get('SELECT price FROM orders WHERE id = ? AND deleted_at IS NULL', [orderId]);
-        if (!order) {
-            await rollback();
-            return fail(res, 404, 'Заказ не найден');
-        }
-        const { s: paid } = await get('SELECT COALESCE(SUM(amount), 0) AS s FROM payments WHERE order_id = ?', [orderId]);
-        const remaining = order.price - paid;
-        if (amount > remaining + 0.0001) {
-            await rollback();
-            return fail(res, 400, `Платежи не могут превышать стоимость: можно внести не больше ${Math.max(0, remaining).toFixed(2).replace(/\.00$/, '').replace(/(\.\d)0$/, '$1')}`);
-        }
-        const ins = await run('INSERT INTO payments (order_id, amount, method, user_id) VALUES (?, ?, ?, ?)', [orderId, amount, req.body.method, req.user.id]);
-        paymentId = ins.id;
-        await commit();
-    } catch (e) {
-        try { await rollback(); } catch (er) {}
-        throw e;
-    }
-    res.status(201).json({ id: paymentId });
+    // Проверка остатка и вставка — одним атомарным запросом (два платежа одновременно не превысят стоимость)
+    const { id, changes } = await run(`
+        INSERT INTO payments (order_id, amount, method, user_id)
+        SELECT ?, ?, ?, ?
+        WHERE EXISTS (SELECT 1 FROM orders WHERE id = ? AND deleted_at IS NULL)
+          AND ? <= (SELECT price FROM orders WHERE id = ?) - (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE order_id = ?) + 0.0001`,
+        [orderId, amount, req.body.method, req.user.id, orderId, amount, orderId, orderId]);
+    if (changes) return res.status(201).json({ id });
+    const order = await get('SELECT price FROM orders WHERE id = ? AND deleted_at IS NULL', [orderId]);
+    if (!order) return fail(res, 404, 'Заказ не найден');
+    const { s: paid } = await get('SELECT COALESCE(SUM(amount), 0) AS s FROM payments WHERE order_id = ?', [orderId]);
+    const left = Math.max(0, order.price - paid).toFixed(2).replace(/\.00$/, '').replace(/(\.\d)0$/, '$1');
+    return fail(res, 400, `Платежи не могут превышать стоимость: можно внести не больше ${left}`);
 });
 
 // Исправлять ошибки в платежах может только владелец

@@ -9,10 +9,8 @@ const run = (sql, p = []) => new Promise((ok, no) =>
 const get = (sql, p = []) => new Promise((ok, no) => db.get(sql, p, (e, r) => (e ? no(e) : ok(r))));
 const all = (sql, p = []) => new Promise((ok, no) => db.all(sql, p, (e, r) => (e ? no(e) : ok(r))));
 
-// Промисифицированные транзакции
-const begin = () => new Promise((ok, no) => db.run('BEGIN IMMEDIATE', (e) => (e ? no(e) : ok())));
-const commit = () => new Promise((ok, no) => db.run('COMMIT', (e) => (e ? no(e) : ok())));
-const rollback = () => new Promise((ok, no) => db.run('ROLLBACK', (e) => (e ? no(e) : ok())));
+// Важно: соединение одно, поэтому ручные BEGIN/COMMIT вокруг await небезопасны: запросы разных пользователей
+// попадают в одну транзакцию. Составные проверки делаем одним SQL-запросом.
 
 // Таблицы создаются по очереди; сервер стартует после ready
 const ready = (async () => {
@@ -53,10 +51,6 @@ const ready = (async () => {
     await run('DELETE FROM sessions WHERE expires_at < ?', [Date.now()]);
     await run('CREATE INDEX IF NOT EXISTS idx_clients_phone ON clients(phone)');
     await run('CREATE INDEX IF NOT EXISTS idx_orders_employee ON orders(employee_id)');
-    await run('CREATE INDEX IF NOT EXISTS idx_orders_client ON orders(client_id)');
-    await run('CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status)');
-    await run('CREATE INDEX IF NOT EXISTS idx_orders_deleted_at ON orders(deleted_at)');
-    await run('CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at)');
 
     // Миграции: номер версии хранится в PRAGMA user_version. Новое изменение схемы = новая строка в конце списка.
     const migrations = [
@@ -76,6 +70,12 @@ const ready = (async () => {
         await run(`PRAGMA user_version = ${i + 1}`);
     }
 
+    // Индексы по колонкам, которые добавляют миграции (например deleted_at), создаются только после миграций
+    await run('CREATE INDEX IF NOT EXISTS idx_orders_client ON orders(client_id)');
+    await run('CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status)');
+    await run('CREATE INDEX IF NOT EXISTS idx_orders_deleted_at ON orders(deleted_at)');
+    await run('CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at)');
+
     const { n } = await get('SELECT COUNT(*) AS n FROM employees');
     if (n === 0) {
         await run("INSERT INTO employees (name, position) VALUES ('Алексей Петров', 'Старший мастер')");
@@ -83,4 +83,4 @@ const ready = (async () => {
     }
 })();
 
-module.exports = { run, get, all, ready, db, begin, commit, rollback };
+module.exports = { run, get, all, ready, db };
